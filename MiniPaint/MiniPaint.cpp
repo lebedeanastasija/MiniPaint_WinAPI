@@ -1,91 +1,57 @@
 #include <windows.h>
+#include "KWnd.h"
 
-//прототип функции обработки сообщений
-LRESULT CALLBACK WindowProcess(HWND, UINT, WPARAM, LPARAM);
-TCHAR mainMessage[] = L"I am maladzec :)";
+LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+TCHAR mainMsg[] = L" I am maladzec :) ";
 
-int WINAPI WinMain(HINSTANCE hInstance,
-	HINSTANCE hPrevInstance,
-	LPSTR pCommandLine,
-	int nCommandShow)
+int WINAPI WinMain( HINSTANCE hInstance,	HINSTANCE hPrevInstance,
+					LPSTR lpCmdLine,	int nCmdShow)
 {
-	TCHAR ClassName[] = L"MyClass";	
-	HWND hWindow;//СОЗДАЕМ ДЕСКРИПТОР ОКНА
-	MSG msg;
-
-	WNDCLASSEX windowClass;	//создаем экземпляр для обращения к членам класса WNDCLASSEX
-	windowClass.cbSize = sizeof(windowClass);
-	windowClass.style = CS_HREDRAW | CS_VREDRAW;
-	windowClass.lpfnWndProc = WindowProcess;//указатель на пользовательскую функцию
-	windowClass.lpszMenuName = L"IDR_MENU1";
-	windowClass.lpszClassName = ClassName;
-	windowClass.cbWndExtra = NULL;
-	windowClass.cbClsExtra = NULL;
-	windowClass.hIcon = LoadIcon(NULL, IDI_WINLOGO);
-	windowClass.hIconSm = LoadIcon(NULL, IDI_WINLOGO);
-	windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
-	windowClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
-	windowClass.hInstance = hInstance;
-
-	if (!RegisterClassEx(&windowClass)) {
-		MessageBox(NULL, L"Class registration error!", L"Error", MB_OK);
-		return NULL;
-	}
-	
-	//COЗДАЕМ ОКОШКО И ПОКАЗЫВАЕМ ЕГО НА ЭКРАНЕ
-	hWindow = CreateWindow(
-		ClassName,
-		L"Mini Paint", //window's name
-		WS_OVERLAPPEDWINDOW | WS_VSCROLL, //window viewing mode
-		CW_USEDEFAULT, // window x-state
-		NULL, //window y-state
-		CW_USEDEFAULT, // window width
-		NULL, //window height
-		HWND(NULL), // parent window handler
-		NULL, //menu handler
-		HINSTANCE(hInstance), //application instance
-		NULL); //get nothing from WndProc
-			
-	if (!hWindow) {
-		MessageBox(NULL, L"Window creation fail!", L"Error", MB_OK);
-		return NULL;
-	}
-
-	ShowWindow(hWindow, nCommandShow);
-	UpdateWindow(hWindow);
+	MSG msg;	
+	KWnd mainWnd(L"An IAmMolodzec application", hInstance, nCmdShow, WndProc, NULL,50, 100, 200, 150);
 
 	while (GetMessage(&msg, NULL, NULL, NULL)) {
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
-	return msg.wParam;//ВОЗВРАЩАЕМ ЗНАЧЕНИЕ ПРИ НЕУДАЧЕ ИЛИ ВЫХОДЕ
+	return msg.wParam;
 }
 
-LRESULT CALLBACK WindowProcess(HWND hWindow, //indow handler
-						 UINT uMessage, //message for OS
-						 WPARAM wParameter, //parametres
-						 LPARAM lParameter) //message for the next applying
+LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	HDC hDeviceContext;
-	PAINTSTRUCT paintStruct;
-	RECT rectPlace;
-	COLORREF colorText = RGB(255, 0, 0);
+	HDC hDC;
+	PAINTSTRUCT ps;
+	RECT rect;
+	COLORREF textColor = RGB(0, 0, 0);
+	COLORREF backColor = RGB(0, 155, 155);
+	int userReply;
 
-	switch (uMessage) {
+	switch (uMsg) {
+	case WM_CREATE:
+		SetClassLong(hWnd, GCL_HBRBACKGROUND, (LONG)CreateSolidBrush(RGB(200, 160, 255)));
+		break;
 	case WM_PAINT:
-		hDeviceContext = BeginPaint(hWindow, &paintStruct);
-		GetClientRect(hWindow, &rectPlace);
-		SetTextColor(hDeviceContext, colorText);
-		DrawText(hDeviceContext, mainMessage, -1, &rectPlace, DT_SINGLELINE|DT_CENTER|DT_VCENTER);
-		EndPaint(hWindow, &paintStruct);
+		hDC = BeginPaint(hWnd, &ps);
+		
+		//SetBkMode(hDC, TRANSPARENT);
+		GetClientRect(hWnd, &rect);
+		SetTextColor(hDC, textColor);
+		SetBkColor(hDC, backColor);
+
+		DrawText(hDC, mainMsg, -1, &rect, DT_SINGLELINE|DT_CENTER|DT_VCENTER);
+		EndPaint(hWnd, &ps);
+		break;
+	case WM_CLOSE:
+		userReply = MessageBox(hWnd, L"Are you sure you want to close he application?", L"", MB_YESNO | MB_ICONQUESTION);
+		if (IDYES == userReply)
+			DestroyWindow(hWnd);
 		break;
 	case WM_DESTROY:
 		PostQuitMessage(NULL);
 		break;
 	default:
-		return DefWindowProc(hWindow, uMessage, wParameter, lParameter);
+		return DefWindowProc(hWnd, uMsg, wParam, lParam);
 	}
 	return NULL;
 }
-
-
+ 
