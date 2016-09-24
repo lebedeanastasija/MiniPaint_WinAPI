@@ -18,7 +18,6 @@ static HPEN hPen, hOldPen;
 static ShapeData shapeData;
 UINT style;
 CHOOSECOLOR* cc;
-HWND canvas;
 HWND hMainWnd;
 HINSTANCE* GLOBAL_HINSTANCE;
 
@@ -27,7 +26,6 @@ void InitChooseColorStructure();
 void SetPen();
 void SetPenWidth(int);
 void SetPenColor(COLORREF);
-int CreateCanvas(HINSTANCE hInstance, HWND hwnd);
 
 int WINAPI WinMain( HINSTANCE hInstance,	HINSTANCE hPrevInstance,
 					LPSTR lpCmdLine,	int nCmdShow)
@@ -38,8 +36,6 @@ int WINAPI WinMain( HINSTANCE hInstance,	HINSTANCE hPrevInstance,
 	KWnd mainWnd(L"An IAmMolodzec application", hInstance, nCmdShow, WndProc, 
 		MAKEINTRESOURCE(IDR_MENU1), 100, 100, 400, 300);
 	hMainWnd = mainWnd.GetHWnd();
-
-	CreateCanvas(GLOBAL_HINSTANCE[0], hMainWnd);
 
 	while (GetMessage(&msg, NULL, NULL, NULL)) {
 		TranslateMessage(&msg);
@@ -89,26 +85,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			shapeData.id_shape = ID_FIGURE_PANSIL;
 			break;
 		case ID_WIDTH_1:
-			SetPenWidth(ID_WIDTH_1);
+			SetPenWidth(1);
 			break;
 		case ID_WIDTH_5:
-			SetPenWidth(ID_WIDTH_5);
+			SetPenWidth(5);
 			break;
 		case ID_WIDTH_10:
-			SetPenWidth(ID_WIDTH_10);
+			SetPenWidth(10);
 			break;
 		case ID_WIDTH_15:
-			SetPenWidth(ID_WIDTH_15);
+			SetPenWidth(15);
 			break;
 		case ID_WIDTH_20:
-			SetPenWidth(ID_WIDTH_20);
+			SetPenWidth(20);
 			break;
 		case ID_COLOR:	
 			ChooseColor(cc);
 			SetPenColor(cc->rgbResult);
 			break;
 		}
-		InvalidateRect(hWnd, NULL, TRUE);
 		break;
 
 	case WM_LBUTTONDOWN:
@@ -179,7 +174,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_DESTROY:
 		SelectObject(hDC, hOldBrush);
-		ReleaseDC(hWnd, hDC);
+		SelectObject(hDC, hOldPen);
 		PostQuitMessage(NULL);
 		break;
 	default:
@@ -198,15 +193,6 @@ void InitChooseColorStructure(){
 	cc->lCustData = 0;
 	cc->lpfnHook = NULL;
 	cc->lpTemplateName = L"Choose color";
-}
-int CreateCanvas(HINSTANCE hInstance, HWND hwnd){
-	DWORD dwExStyle = WS_EX_CLIENTEDGE | WS_EX_DLGMODALFRAME;
-	DWORD dwStyle = WS_CHILD | WS_VISIBLE | SS_CENTERIMAGE | SS_SUNKEN;
-	RECT rect;
-	GetWindowRect(hMainWnd, &rect);
-	canvas = CreateWindowEx(dwExStyle, L"STATIC", L"", dwStyle,
-		0, 35, rect.right - rect.left - 15, 400, hwnd, NULL, hInstance, NULL);
-	return 1;
 }
 
 void SetPen(){
