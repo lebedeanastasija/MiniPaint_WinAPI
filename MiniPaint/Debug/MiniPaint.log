@@ -1,8 +1,9 @@
-﻿Сборка начата 24.09.2016 16:17:19.
+﻿Сборка начата 26.09.2016 1:17:18.
      1>Проект "C:\Users\nastya\Documents\cем5\ОСиСП\MiniPaint\MiniPaint\MiniPaint.vcxproj" в узле 2 (целевые объекты Build).
      1>ClCompile:
          C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin\CL.exe /c /ZI /nologo /W3 /WX- /sdl /Od /Oy- /D WIN32 /D _DEBUG /D _WINDOWS /D _UNICODE /D UNICODE /Gm /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Fo"Debug\\" /Fd"Debug\vc120.pdb" /Gd /TP /analyze- /errorReport:prompt MiniPaint.cpp
          MiniPaint.cpp
+     1>c:\users\nastya\documents\cем5\осисп\minipaint\minipaint\minipaint.cpp(100): warning C4244: аргумент: преобразование "time_t" в "unsigned int", возможна потеря данных
        ResourceCompile:
          C:\Program Files (x86)\Windows Kits\8.1\bin\x86\rc.exe /D _UNICODE /D UNICODE /l"0x0409" /nologo /fo"Debug\MiniPaint.res" MiniPaint.rc 
        Link:
@@ -14,4 +15,4 @@
 
 Сборка успешно завершена.
 
-Затраченное время: 00:00:06.28
+Затраченное время: 00:00:10.10
