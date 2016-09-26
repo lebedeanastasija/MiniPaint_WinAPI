@@ -14,8 +14,7 @@ typedef struct {
 
 HINSTANCE GLOBAL_HINSTANCE;
 
-HDC hdc;
-HDC hdcMeta;
+HDC hdc, hdcMeta, hdcPaint;
 HDC hdcMem;
 HBITMAP hbmMem, hOld;
 static HDC hCompatibleDC = 0;
@@ -40,13 +39,15 @@ static HPEN hPen, hOldPen;
 static ShapeData shapeData;
 HWND hMainWnd;
 
+PAINTSTRUCT ps;
 static CHOOSECOLOR cc;
 static OPENFILENAME ofn;
 static PRINTDLG pd;
 static DOCINFO di;
-char openFileName[260];
-char filename[30] = "";
+char openFileName[256];
 HANDLE hf; 
+
+int wmId, wmEvent;
 
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 
@@ -89,21 +90,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_CREATE:
 		ShowWindow(hWnd, SW_MAXIMIZE);
 		hdc = GetDC(hWnd);
-		scale = 1;
+		scale = 1;				
+		hMenu = GetMenu(hWnd);	
 
-		InitChooseColorStructure();
-		InitOpenFileStructure();
-		
-		hMenu = GetMenu(hWnd);			
 		GetClientRect(hWnd, &rect);
-
-		srand(time(NULL));
-		sprintf(filename, (char*)"image%d.emf", rand());
 		hdcMeta = CreateEnhMetaFile(NULL, NULL, NULL, NULL);
+		flag = false;
 
-		hPen = CreatePen(PS_SOLID, shapeData.id_width, shapeData.color);
+		hPen = (HPEN)GetStockObject(BLACK_PEN);
 		SelectObject(hdcMeta, hPen);
 
+		shapeData.id_width = 0;
 		hCompatibleDC = CreateCompatibleDC(hdc);
 		hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
 
@@ -122,22 +119,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		DeleteObject(SelectObject(hBitmapDC, hPen));
 
 		SelectObject(hdc, GetStockObject(SYSTEM_FIXED_FONT));
-
-		shapeData.id_width = 0;
-		shapeData.color = RGB(0, 0, 0);
 		break;
 	case WM_COMMAND:
-		switch (LOWORD(wParam))
+		wmId = LOWORD(wParam);
+		wmEvent = HIWORD(wParam);
+		switch (wmId)
 		{
 		case ID_FILE_NEW:
 			createImageFile();
 			break;
 		case ID_FILE_OPEN:
+			InitOpenFileStructure();
 			if (GetOpenFileName(&ofn)){
 				openImageFile();
 			}
 			break;
 		case ID_FILE_SAVE:	
+			InitOpenFileStructure();
 			if (GetSaveFileName(&ofn)){
 				saveImageFile();
 			}
@@ -152,7 +150,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			}
 			break;
 		case ID_FILE_EXIT:
-			SendMessage(hWnd, WM_CLOSE, 0, 0);
+			DestroyWindow(hWnd);
 			break;
 		case ID_ABOUT:
 			MessageBox(hWnd,
@@ -185,19 +183,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			SetPenWidth(20);
 			break;
 		case ID_COLOR:	
+			InitChooseColorStructure();
 			ChooseColor(&cc);
 			SetPenColor(cc.rgbResult);
 			break;
 		case ID_ZOOM_ZOOM:
-		case ID_ZOOM_PAN:
+			shapeData.id_shape = ID_ZOOM_ZOOM;
 			bScaled = TRUE;
-			shapeData.id_shape = ID_ZOOM_PAN;
 			InvalidateRect(hWnd, NULL, FALSE);
+			break;
+		case ID_ZOOM_PAN:
+			shapeData.id_shape = ID_ZOOM_PAN;
 			break;
 		}
 		break;
 
 	case WM_LBUTTONDOWN:
+		if (id == ID_ZOOM_ZOOM)
+			id == ID_ZOOM_PAN;
 		switch (shapeData.id_shape){
 		case ID_FIGURE_PENCIL:
 		case ID_FIGURE_LINE:
@@ -213,66 +216,126 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		bTracking = TRUE;
 		break;
 	case WM_LBUTTONUP:
+		ReleaseCapture();
+		GetClientRect(hWnd, &rect);
+		hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+		DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
+		BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
 		if (bTracking){
-			bTracking = FALSE;
-			SetROP2(hdc, R2_COPYPEN);
-			SetROP2(hdcMeta, R2_COPYPEN);
-			x2 = LOWORD(lParam);
-			y2 = HIWORD(lParam);
-			
+			x2 = (short)LOWORD(lParam);
+			y2 = (short)HIWORD(lParam);			
 			switch (shapeData.id_shape){
-			case ID_FIGURE_PENCIL:				
-				MoveToEx(hdc, x2, y2, NULL);
-				MoveToEx(hdcMeta, x2, y2, NULL);
+			case ID_FIGURE_PENCIL:			
 				break;
 			case ID_FIGURE_LINE:
-				LineTo(hdc, x2, y2);
+				MoveToEx(hdcMeta, x1, y1, NULL);
 				LineTo(hdcMeta, x2, y2);
+				MoveToEx(hBitmapDC, x1, y1, NULL);
+				LineTo(hBitmapDC, x2, y2);				
 				break;
 			}
+			f = 1;
+			InvalidateRect(hWnd, NULL, FALSE);
+			UpdateWindow(hWnd);
+			bTracking = FALSE;
 		}
 		break;
 	case WM_MOUSEMOVE:
 		GetClientRect(hMainWnd, &rect);
-		if (bTracking){			
+		if (bTracking){	
+			hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+			DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
+			BitBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
 			switch (shapeData.id_shape){
-			case ID_FIGURE_PENCIL:
-				SetROP2(hdc, R2_COPYPEN);
-				SetROP2(hdcMeta, R2_COPYPEN);
-				x2 = LOWORD(lParam);
-				y2 = HIWORD(lParam);
-				LineTo(hdc, x2, y2);
-				LineTo(hdcMeta, x2, y2);
-				break;
-			case ID_FIGURE_LINE:
-				x2 = LOWORD(lParam);
-				y2 = HIWORD(lParam);
-				break;
+				case ID_FIGURE_PENCIL:
+					MoveToEx(hdcMeta, x2, y2, NULL);
+					MoveToEx(hBitmapDC, x2, y2, NULL);
+					x2 = (short)LOWORD(lParam);
+					y2 = (short)HIWORD(lParam);							
+					LineTo(hdcMeta, x2, y2);														
+					LineTo(hBitmapDC, x2, y2);
+					break;
+				case ID_FIGURE_LINE:
+					x2 = (short)LOWORD(lParam);
+					y2 = (short)HIWORD(lParam);
+					MoveToEx(hCompatibleDC, x1, y1, NULL);
+					LineTo(hCompatibleDC, x2, y2);
+					break;
+				case ID_ZOOM_PAN:
+					x1 = (short)((short)LOWORD(lParam) / scale);
+					y1 = (short)((short)HIWORD(lParam) / scale);
+					xBegin += (x2 - x1);
+					yBegin += (y2 - y1);
+					x2 = x1;
+					y2 = y1;
+					break;
 			}
+			f = 2;
+			InvalidateRect(hWnd, NULL, FALSE);
+			UpdateWindow(hWnd);
 		}
 		break;
-	case WM_LBUTTONDBLCLK:	
-		bTracking = FALSE;
-		x1 = LOWORD(lParam);
-		y1 = HIWORD(lParam);
-		MoveToEx(hdc, x1, y1, NULL);
-		MoveToEx(hdcMeta, x1, y1, NULL);
+	case WM_MOUSEWHEEL:
+		if (shapeData.id_shape != ID_ZOOM_PAN &&
+			shapeData.id_shape != ID_ZOOM_ZOOM){
+			scale = 1;
+			shapeData.id_shape = ID_ZOOM_PAN;
+		}
+		zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+		if ((zDelta > 0) && (scale < 3))
+			scale = scale + 0.03;
+		if ((zDelta < 0) && (scale > 0.3))
+			scale = scale - 0.03;
+		InvalidateRect(hWnd, NULL, FALSE);
+		UpdateWindow(hWnd);
+		break;
+	case WM_PAINT:
+		hdcPaint = BeginPaint(hWnd, &ps);
 		switch (shapeData.id_shape){
-		case ID_FIGURE_PENCIL:				
+		case ID_ZOOM_ZOOM:
+		case ID_ZOOM_PAN:
+			GetClientRect(hWnd, &rect);
+			hdcMem = CreateCompatibleDC(hdc);
+			hbmMem = CreateCompatibleBitmap(hdc,
+				rect.right, rect.bottom);
+			hOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
+			FillRect(hdcMem, &rect, WHITE_BRUSH);
+			StretchBlt(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale),
+				hBitmapDC, xBegin, yBegin, rect.right, rect.bottom, SRCCOPY);
+			SelectObject(hdcMem, (HBRUSH)GetStockObject(NULL_BRUSH));
+			SelectObject(hdcMem, (HPEN)GetStockObject(BLACK_PEN));
+			Rectangle(hdcMem, 0, 0, (int)(rect.right*scale), (int)(rect.bottom*scale));
+			BitBlt(hdcPaint, 0, 0, rect.right, rect.bottom, hdcMem, 0, 0, SRCCOPY);
+			SelectObject(hdcMem, hOld);
+			DeleteObject(hbmMem);
+			DeleteDC(hdcMem);
 			break;
-		case ID_FIGURE_LINE:			
-			LineTo(hdc, x1, y1);
-			LineTo(hdcMeta, x1, y1);
+		default:
+			GetClientRect(hWnd, &rect);
+			if (f == 0){
+				BitBlt(hdcPaint, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
+			}
+			if (f == 1)
+			{
+				BitBlt(hdcPaint, 0, 0, rect.right, rect.bottom, hBitmapDC, 0, 0, SRCCOPY);
+				f = 0;
+			}
+			if (f == 2)
+			{
+				BitBlt(hdcPaint, 0, 0, rect.right, rect.bottom, hCompatibleDC, 0, 0, SRCCOPY);
+				f = 0;
+			}
 			break;
 		}
 		break;
-	case WM_CLOSE:		
-		//tryExitApp();
-		ReleaseDC(hMainWnd, hdc);
-		SelectObject(hdc, hOldPen);
-		DestroyWindow(hWnd);
+	case WM_ERASEBKGND:
+		GetClientRect(hWnd, &rect);
+		FillRect(hdc, &rect, WHITE_BRUSH);
 		break;
 	case WM_DESTROY:
+		ReleaseDC(hMainWnd, hdc);
+		hMetaFile = CloseEnhMetaFile(hdcMeta);
+		DeleteEnhMetaFile(hMetaFile);
 		PostQuitMessage(NULL);
 		break;
 	default:
@@ -280,31 +343,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	}
 	return NULL;
 }
-
-void tryExitApp(){
-	int result = MessageBox(NULL, L"Do  you want to save image?",
-		L"Exit", MB_YESNOCANCEL);
-	switch (result){
-		case IDYES:
-			if (GetSaveFileName(&ofn)){
-				saveImageFile();
-				DestroyWindow(hMainWnd);
-			}
-			break;
-		case IDNO:
-			closeMetaFile();
-			DeleteFile((LPCWSTR)filename);
-			DestroyWindow(hMainWnd);
-			break;
-		default:
-			break;
-	}
-}
-
-void closeMetaFile(){
-	hMetaFile = CloseEnhMetaFile(hdcMeta);
-	DeleteEnhMetaFile(hMetaFile);
-}
+	
 
 void InitChooseColorStructure(){
 	cc.hInstance = (HWND)GLOBAL_HINSTANCE;
@@ -318,7 +357,6 @@ void InitChooseColorStructure(){
 }
 
 void InitOpenFileStructure(){
-	ZeroMemory(&ofn, sizeof(OPENFILENAME));
 	ofn.lStructSize = sizeof(OPENFILENAME);
 	ofn.hwndOwner = hMainWnd;
 	ofn.hInstance = GLOBAL_HINSTANCE;
@@ -327,13 +365,14 @@ void InitOpenFileStructure(){
 	ofn.lpstrFilter = L"Metafile (*.emf)\0*.emf\0Все файлы (*.*)\0*.*\0";
 	ofn.nFilterIndex = 1;
 	ofn.lpstrFileTitle = NULL;
-	ofn.nMaxFileTitle = 0;
+	ofn.nMaxFileTitle = sizeof(openFileName);
 	ofn.lpstrInitialDir = NULL;
 	ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT|
 		OFN_HIDEREADONLY | OFN_EXPLORER;
 }
 
 void InitPrintDialogStructure(){
+	ZeroMemory(&pd, sizeof(pd));
 	pd.lStructSize = sizeof(pd);
 	pd.hwndOwner = hMainWnd;
 	pd.hDevMode = NULL;
@@ -384,6 +423,7 @@ void openImageFile(){
 void saveImageFile(){
 	hMetaFile = CloseEnhMetaFile(hdcMeta);
 	CopyEnhMetaFile(hMetaFile, (LPCWSTR)openFileName);
+	hdcMeta = CreateEnhMetaFile(NULL, NULL, NULL, NULL);
 	GetEnhMetaFileHeader(hMetaFile, sizeof(ENHMETAHEADER), &emh);
 	SetRect(&rect, emh.rclBounds.left, emh.rclBounds.top,
 		emh.rclBounds.right, emh.rclBounds.bottom);
@@ -391,7 +431,6 @@ void saveImageFile(){
 	PlayEnhMetaFile(hdcMeta, hMetaFile, &rect);
 	CloseEnhMetaFile((HDC)hMetaFile);
 	DeleteEnhMetaFile(hMetaFile);
-	CloseHandle((HDC)hMetaFile);
 }
 
 void printImageFile(){
@@ -426,11 +465,12 @@ void createImageFile(){
 	flag = false;
 	DeleteObject(SelectObject(hdcMeta, hPen));
 
+	shapeData.id_width = 0;
 	DeleteObject(hCompatibleDC);
 	DeleteObject(hBitmapDC);
 
 	hCompatibleDC = CreateCompatibleDC(hdc);
-	hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);
+	hCompatibleBitmap = CreateCompatibleBitmap(hdc, rect.right, rect.bottom);	
 	DeleteObject(SelectObject(hCompatibleDC, hCompatibleBitmap));
 	DeleteObject(SelectObject(hCompatibleDC, (HBRUSH)WHITE_BRUSH));
 	PatBlt(hCompatibleDC, 0, 0, rect.right, rect.bottom, PATCOPY);
